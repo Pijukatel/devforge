@@ -146,6 +146,27 @@ The three inputs land where they belong: **spec/apps knowledge → `dig` at plan
 conventions + oracle commands → ambient `AGENTS.md`; verification → `mcpc-tester` as a gating
 final reviewer.**
 
+### `mcpc-tester` placement is feature-dependent
+
+`mcpc-tester` declares `roles: ["reviewer", "final_reviewer"]`, so the target repo's
+`config.json` can wire it into more than one spot depending on what a feature needs (the
+per-list dedup check still allows the same `use` to appear in both lists):
+
+- **`final_reviewers`** — a single end-to-end probe before the merge gate. The default in the
+  example above; cheapest, keeps the inner loop fast.
+- **`reviewers`** — a live probe *every iteration*, for features whose behavior needs
+  continuous verification while the implementation converges. Its `VERDICT` gates convergence
+  like any reviewer.
+- **both** — when a feature wants per-iteration probing *and* a final clean pass.
+
+Two related uses sit deliberately **outside** the slot system:
+
+- *Probing to understand current behavior* happens at **planning time** — the `dig`/architect
+  engine already probes via `mcpc`. It is not a separate slot.
+- *Per-iteration deterministic ground truth* stays the **oracle** (unit tests/lint, run by the
+  orchestrator). `mcpc-tester` complements the oracle as a reviewer; it never replaces it, and
+  an agentic prober is never folded *into* the deterministic oracle.
+
 ## Changes in the generic devforge repo
 
 All domain-agnostic — no `dig`, `mcpc-tester`, or "MCP" anywhere.

@@ -14,6 +14,19 @@ SINGLE_SLOTS = ("validate", "architect", "implementer")
 LIST_SLOTS = ("reviewers", "final_reviewers")
 
 
+def merge_registry(base: dict, repo: dict | None) -> dict:
+    """Overlay a repo's registry deltas onto the shipped base.
+
+    `slot_roles` always comes from the base (the slot->role map is fixed). A repo
+    contributes `uses` only; its entries shallow-override base entries with the same
+    name. Other keys on `repo` (e.g. `$comment`) are ignored.
+    """
+    uses = dict(base["uses"])
+    if repo:
+        uses.update(repo.get("uses", {}))
+    return {"slot_roles": base["slot_roles"], "uses": uses}
+
+
 def _check_use(slot: str, name: str, registry: dict, errs: list[str]) -> None:
     uses = registry["uses"]
     if name not in uses:

@@ -7,7 +7,7 @@
     {
       "name": "devforge",
       "source": "./.claude",
-      "description": "Gated agentic coding loop — /devforge:devforge plus the human-only /devforge:approve-design and /devforge:approve-merge."
+      "description": "Gated agentic coding loop — /devforge plus the human-only /devforge-approve-design and /devforge-approve-merge."
     }
   ]
 }

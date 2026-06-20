@@ -9,7 +9,7 @@ from conftest import REPO_ROOT, load_json
 MARKETPLACE = load_json(REPO_ROOT / ".claude-plugin/marketplace.json")
 PLUGIN = load_json(REPO_ROOT / ".claude/.claude-plugin/plugin.json")
 
-EXPECTED_SKILLS = {"devforge", "approve-design", "approve-merge"}
+EXPECTED_SKILLS = {"devforge", "devforge-approve-design", "devforge-approve-merge"}
 
 
 def test_plugin_manifest_names_devforge():

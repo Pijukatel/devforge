@@ -35,6 +35,13 @@ def test_orchestrator_uses_universal_dispatch_not_per_skill_adapters():
     assert "no per-skill adapter" in ORCH.lower() or "no per-skill adapters" in ORCH.lower()
 
 
+def test_orchestrator_resolves_base_plus_repo_registry():
+    assert "registry.base.json" in ORCH
+    assert "fully-resolved registry" in ORCH
+    # repo deltas are still the .devforge/registry.json the existing test checks for
+    assert ".devforge/registry.json" in ORCH
+
+
 def test_no_per_skill_adapter_dirs_remain():
     skills = REPO_ROOT / ".claude/skills"
     leftover = [p.name for p in skills.glob("devforge-review-*")]

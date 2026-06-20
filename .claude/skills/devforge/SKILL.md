@@ -16,8 +16,10 @@ source before the design is approved, and cannot push/merge before merge is appr
 
 > **Config-driven slots.** Each phase is a *slot* filled by a vendored skill named in
 > `.devforge/config.json`. There are **no per-skill adapters** — one universal dispatch
-> contract (see *Slot dispatch*) drives every engine, parameterized by
-> `.devforge/registry.json`. The default slots: validate ← `brainstorming`, architect ←
+> contract (see *Slot dispatch*) drives every engine, parameterized by the **resolved
+> registry**: a base registry shipped beside this skill (`registry.base.json`) shallow-merged
+> with an optional `.devforge/registry.json` the current repo may add. The default slots:
+> validate ← `brainstorming`, architect ←
 > `writing-plans`, implementer ← `feature-dev`, reviewers ← `staff-review` (parallel,
 > every iteration — kept lean so the loop is fast), final_reviewers ← `thermonuclear` +
 > `code-review` (parallel, after convergence). Every engine is **vendored in-repo**
@@ -31,7 +33,8 @@ source before the design is approved, and cannot push/merge before merge is appr
 |------|--------|--------|-----------|
 | `config.json` | orchestrator (default) / human | orchestrator | yes |
 | `config.local.json` | human (optional) | orchestrator | no (gitignored) |
-| `registry.json` | tool | orchestrator | yes |
+| `registry.base.json` (ships beside the skill) | tool | orchestrator | installed |
+| `registry.json` (repo deltas, optional) | repo owner | orchestrator | yes |
 | `task.md` | validate slot | all | yes |
 | `validation.md` | validate slot | human, all | yes |
 | `design.md` | architect slot | impl, reviewers | yes |
@@ -75,14 +78,20 @@ to its peers.
     `config.schema.json`); tell the human it was created and is editable.
   - If `.devforge/config.local.json` exists, **shallow-merge** it over `config.json`
     (per-slot overrides win) — use it, don't rewrite `config.json`.
-  - **Validate** the resolved config against `.devforge/registry.json` (the rules
+  - **Resolve the registry (base + repo deltas):** load the **base registry** shipped beside
+    this skill at `registry.base.json` — its `uses` engine paths resolve relative to the
+    devforge **install**. If the current repo has `.devforge/registry.json`, **shallow-merge
+    its `uses` over the base** (repo wins on name collision; `slot_roles` always comes from the
+    base; non-`uses` keys such as `$comment` are ignored). A repo `use`'s engine path resolves
+    relative to the **repo root**. A repo with no `registry.json` runs on the base alone.
+  - **Validate** the resolved config against the **resolved (merged) registry** (the rules
     `scripts/validate_config.py` encodes): every slot present; each `use` exists and its
     slot's role (`registry.slot_roles[slot]`) is in that use's `roles`; no duplicate
     `use` within `reviewers` / `final_reviewers`. On any error, **STOP** and print the
     exact problem — do not run with an invalid config.
   - Read `limits.inner_iterations` (default 3), `limits.final_review_rounds` (default
-    2), and `plan_mode_gate` (default true). Record the resolved config in
-    `progress.md`.
+    2), and `plan_mode_gate` (default true). Record the resolved config and the
+    **fully-resolved registry** (every `use` → its resolved engine path) in `progress.md`.
 
 ### Slot dispatch (one universal contract)
 
@@ -91,7 +100,9 @@ parameterized by data in `.devforge/registry.json`. To run slot **S** with value
 `{ "use": U, "model": M }`:
 
 1. Resolve `role = registry.slot_roles[S]`, and `engine = registry.uses[U].engine`,
-   `scope = registry.uses[U].scope`.
+   `scope = registry.uses[U].scope` (against the **resolved** registry). `engine` resolves
+   relative to the devforge **install** for a base `use`, or relative to the **repo root** for
+   a `use` that came from the repo's `.devforge/registry.json`.
 2. Dispatch a **subagent on model M** whose entire instruction is the filled template:
 
    > You are filling devforge's **{role}** slot. Communicate only through `.devforge/`

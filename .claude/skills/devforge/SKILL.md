@@ -1,5 +1,5 @@
 ---
-name: run
+name: devforge
 description: Run a task through the gated coding loop — validate, explore, architect, STOP for human design approval, then implement ↔ review ↔ test, STOP for human pre-merge approval, then merge. Use this to drive any non-trivial change through controlled, human-gated steps where the implementer and reviewer stay independent and coordinate only through files. Invoke as /devforge:devforge <task>.
 argument-hint: "<task description>"
 ---

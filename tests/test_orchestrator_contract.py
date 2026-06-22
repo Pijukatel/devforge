@@ -25,57 +25,76 @@ def test_orchestrator_has_plan_mode_gate():
     assert "plan_mode_gate" in ORCH
 
 
-def test_orchestrator_keeps_marker_gates():
-    assert "triage.approved" in ORCH
-    assert "design.approved" in ORCH
-    assert "merge.approved" in ORCH
+def test_orchestrator_keeps_the_two_marker_gates():
+    # Design (before source edits) and merge (before git writes) are the only markers.
+    assert "_design.approved" in ORCH
+    assert "_merge.approved" in ORCH
+
+
+def test_orchestrator_has_no_triage_gate():
+    # Triage flows into design; it never waits on an approval marker.
+    assert "triage.approved" not in ORCH
+    assert "TRIAGE GATE" not in ORCH
+    assert "Triage has no gate" in ORCH
+    assert "DEFER or DECLINE" in ORCH
 
 
 def test_orchestrator_has_triage_phase_before_design():
-    # Triage is the cheap product-decision step that gates deep analysis/design.
-    assert "triage.md" in ORCH
+    assert "### 1. Triage" in ORCH
     assert "PROCEED | DEFER | DECLINE" in ORCH
-    # Triage must come before validate/architect in the procedure text.
-    assert ORCH.index("### 1. Triage") < ORCH.index("### 3. Validate")
-    assert ORCH.index("### 2. TRIAGE GATE") < ORCH.index("### 5. Architect")
+    assert ORCH.index("### 1. Triage") < ORCH.index("### 2. Validate")
+    assert ORCH.index("### 1. Triage") < ORCH.index("### 5. Design gate")
 
 
 def test_orchestrator_persists_raw_request_before_triage():
-    assert "request.md" in ORCH
+    assert "_user_request.md" in ORCH
     assert "Write it verbatim to" in ORCH
-    assert ORCH.index("request.md") < ORCH.index("### 1. Triage")
-    assert "`validate` | `request.md`, `triage.md`" in ORCH
+    assert ORCH.index("_user_request.md") < ORCH.index("### 1. Triage")
+    assert "`validate` | `_user_request.md`, `1-triage.md`" in ORCH
+
+
+def test_orchestrator_uses_flat_prefixed_layout():
+    # Two human-facing files are numbered; internal routing files use an underscore.
+    assert "1-triage.md" in ORCH
+    assert "2-design.md" in ORCH
+    for internal in ("_user_request.md", "_verified_task.md", "_request_fact_check.md",
+                     "_state.json", "_panel.json", "_progress.md"):
+        assert internal in ORCH
+
+
+def test_orchestrator_documents_why_files_are_separate():
+    # The per-stage file split is the context-routing / reviewer-independence mechanism.
+    assert "context" in ORCH.lower()
+    assert "independen" in ORCH.lower()
 
 
 def test_orchestrator_selects_review_panel_at_design_gate():
-    # Configured reviewer lists are a roster; the design gate picks the per-run panel.
     assert "state.panel" in ORCH
-    assert "panel.json" in ORCH
+    assert "_panel.json" in ORCH
     assert "subset of the configured roster" in ORCH
 
 
 def test_approve_design_records_the_approved_panel():
-    assert "panel.json" in APPROVE_DESIGN
+    assert "_panel.json" in APPROVE_DESIGN
     assert 'state["panel"] = panel' in APPROVE_DESIGN
     assert 'state["phase"] = "inner-loop"' in APPROVE_DESIGN
     assert 'state["iteration"] = 1' in APPROVE_DESIGN
 
 
 def test_orchestrator_tracks_resumable_post_design_phases():
-    for phase in ("inner-loop", "final-review", "final-reopen", "pre-merge-gate"):
+    for phase in ("inner-loop", "final-review", "final-reopen", "merge-confirm"):
         assert phase in ORCH
-    assert 'state.phase="pre-merge-gate"' in ORCH
+    assert 'state.phase="merge-confirm"' in ORCH
 
 
 def test_implementer_reads_validated_spec_not_only_design():
     assert (
-        "| `implementer` | `task.md`, `validation.md`, `design.md`"
+        "| `implementer` | `_verified_task.md`, `_request_fact_check.md`, `2-design.md`"
         in ORCH
     )
 
 
 def test_orchestrator_has_complexity_rubric_with_numbers():
-    # Tiers must carry concrete size/blast-radius criteria for consistent rating.
     assert "Complexity rubric" in ORCH
     assert "Blast-radius override" in ORCH
     for tier in ("trivial", "small", "medium", "large"):
@@ -91,18 +110,28 @@ def test_orchestrator_dispatches_reviewers_in_parallel():
     assert "final_reviewers" in ORCH
 
 
+def test_orchestrator_has_first_class_review_mode():
+    # Review-only tasks skip implement, run the panel on the existing diff, stop at findings.
+    assert "Review mode" in ORCH
+    assert "review-only" in ORCH
+    assert "do NOT implement" in ORCH
+
+
+def test_orchestrator_merge_is_chat_confirm_not_plan_mode():
+    assert "Merge confirm" in ORCH
+    assert "commit & open PR?" in ORCH
+    assert "No plan mode" in ORCH
+
+
+def test_orchestrator_design_is_short_major_changes_only():
+    assert "What we're solving" in ORCH
+    assert "never an exhaustive file list" in ORCH
+
+
 def test_orchestrator_uses_universal_dispatch_not_wrapper_skills():
-    # The simplification: one contract driven by the registry, no wrapper skill per engine.
     assert "Stage dispatch" in ORCH
     assert "registry.stage_roles" in ORCH and "registry.uses" in ORCH
     assert "separate wrapper skill" in ORCH
-
-
-def test_orchestrator_resolves_base_plus_repo_registry():
-    assert "registry.base.json" in ORCH
-    assert "fully-resolved registry" in ORCH
-    # repo deltas are still the .devforge/registry.json the existing test checks for
-    assert ".devforge/registry.json" in ORCH
 
 
 def test_no_wrapper_skill_dirs_remain():
@@ -112,6 +141,12 @@ def test_no_wrapper_skill_dirs_remain():
     leftover += [p.name for p in skills.glob("devforge-validate-*")]
     leftover += [p.name for p in skills.glob("devforge-architect-*")]
     assert leftover == [], f"wrapper skill dirs should be gone: {leftover}"
+
+
+def test_orchestrator_resolves_base_plus_repo_registry():
+    assert "registry.base.json" in ORCH
+    assert "fully-resolved registry" in ORCH
+    assert ".devforge/registry.json" in ORCH
 
 
 def test_orchestrator_documents_oracle_commands():
@@ -126,6 +161,8 @@ def test_orchestrator_documents_dirty_worktree_protection():
     assert "pre-existing unrelated changes" in ORCH
 
 
-def test_orchestrator_finish_step_is_specific():
-    assert "Commit with a concise message derived from `task.md`" in ORCH
+def test_orchestrator_finish_writes_plain_commit_and_pr():
+    # Plain PR body: what / how / alternatives, never obvious-diff narration.
+    assert "Alternatives considered" in ORCH
+    assert "obvious from the diff" in ORCH
     assert "PR URL" in ORCH

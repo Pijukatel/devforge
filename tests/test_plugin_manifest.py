@@ -11,10 +11,14 @@ PLUGIN = load_json(REPO_ROOT / ".claude/.claude-plugin/plugin.json")
 
 EXPECTED_SKILLS = {
     "devforge",
-    "devforge-approve-triage",
     "devforge-approve-design",
     "devforge-approve-merge",
 }
+
+
+def test_triage_gate_skill_is_gone():
+    # Triage has no gate, so its approval skill must not ship.
+    assert not (REPO_ROOT / ".claude/skills/devforge-approve-triage").exists()
 
 
 def test_plugin_manifest_names_devforge():

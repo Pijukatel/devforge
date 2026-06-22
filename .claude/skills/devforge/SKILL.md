@@ -1,59 +1,62 @@
 ---
 name: devforge
-description: Run a task through the gated coding loop — triage, STOP for human go/no-go, validate, explore, architect, STOP for human design + review-panel approval, then implement ↔ review ↔ test, STOP for human pre-merge approval, then merge. Use this to drive any non-trivial change through controlled, human-gated steps where the implementer and reviewer stay independent and coordinate only through files. Invoke as /devforge <task>.
+description: Run a task through a human-gated coding loop — a cheap triage, then ONE design gate (plan mode) before any source edit, an implement ↔ review ↔ test loop that converges only at zero findings, and a plain merge confirm before any git write. Reviewers stay independent and coordinate only through files. Handles both building changes and reviewing an existing PR/branch. Invoke as /devforge <task>.
 argument-hint: "<task description>"
 ---
 
 # devforge
 
-You are the orchestrator. Keep all run data in `.devforge/`; `.claude/skills/` is the
-tooling. The loop is:
+You are the orchestrator. Keep all run data in `.devforge/`; `.claude/skills/` is the tooling.
 
-`request` → `triage` → `[triage.approved]` → `validate` → `explore` → `architect` →
-`[design.approved]` → `implement/review/test` → `final review` → `[merge.approved]` →
-`commit/PR`.
+There are exactly two human stops: the **design gate** (plan mode) before any source edit, and a
+**merge confirm** before any git write. Triage has no gate — it flows into design
+unless it says DEFER/DECLINE. The loop:
 
-The three marker gates are mandatory:
-- `triage.approved` before deep validate/design
-- `design.approved` before source edits
-- `merge.approved` before push/merge/PR
+`_request` → `1-triage` → `validate` → `explore` → `architect` → `2-design` →
+`[_design.approved]` → `implement ↔ review ↔ test` → `final review` →
+`[merge confirm]` → `commit/PR`.
 
-## Artifacts
+## Files (flat, prefixed)
 
-Durable run files: `request.md`, `triage.md`, `triage.approved`, `task.md`,
-`validation.md`, `design.md`, `panel.json`, `design.approved`, `state.json`,
-`progress.md`, `iter-N/claim.md`, `iter-N/review-<use>.md`,
-`iter-N/final-review-<use>.md`, `merge.approved`.
+Two files are yours to read; the underscore-prefixed rest is internal plumbing.
 
-Regenerable ignored files: `iter-N/diff.patch`, `iter-N/test-results.txt`.
+**Why one file per stage:** each stage writes one file and each role reads ONLY the files it
+needs, so a subagent's context stays scoped and reviewers stay independent. Reviewers judge the
+diff against `2-design.md`; they never see the implementer's `claim.md` or each other's reviews —
+that blindness is what makes a multi-reviewer panel give independent signal, not groupthink.
 
-Reviewer independence: reviewers read only `task.md`, `design.md`, `iter-N/diff.patch`,
-and `iter-N/test-results.txt`. Never give them `claim.md` or peer reviews.
+- Human-facing: `1-triage.md`, `2-design.md`.
+- Internal: `_user_request.md`, `_verified_task.md`, `_request_fact_check.md`, `_panel.json`, `_state.json`,
+  `_progress.md`, `_design.approved`, `_merge.approved`.
+- Per iteration in `iter-N/`: `claim.md`, `review-<use>.md`, `final-review-<use>.md`, and the
+  regenerable (gitignored) `diff.patch`, `test-results.txt`.
+
+Reviewer independence: reviewers read only `_verified_task.md`, `2-design.md`, `iter-N/diff.patch`, and
+`iter-N/test-results.txt`. Never give them `claim.md` or peer reviews.
 
 ## Setup / Resume
 
 1. `mkdir -p .devforge`.
-2. If this is a fresh run, require a non-empty `<task>`. Write it verbatim to
-   `.devforge/request.md` immediately. Initialize:
-   `{"phase":"triage","iteration":0,"head_sha":"<git rev-parse HEAD>"}`.
-3. If `.devforge/state.json` exists, read it and resume. If a new non-empty `<task>`
-   differs from `.devforge/request.md`, ask whether to continue or start fresh.
+2. Fresh run: require a non-empty `<task>`. Write it verbatim to `.devforge/_user_request.md`.
+   Initialize `_state.json`: `{"phase":"triage","iteration":0,"head_sha":"<git rev-parse HEAD>"}`.
+3. If `.devforge/_state.json` exists, read it and resume. If a new non-empty `<task>` differs
+   from `_user_request.md`, ask whether to continue or start fresh.
 4. Load config before dispatching any stage:
    - Copy this skill's `config.default.json` to `.devforge/config.json` if absent.
    - Shallow-merge `.devforge/config.local.json` over it if present.
    - Resolve `registry.base.json` plus optional `.devforge/registry.json` `uses`.
-   - Validate every configured `use` against `registry.stage_roles` and `registry.uses`;
-     no duplicate `use` inside `reviewers` or `final_reviewers`.
-   - Record `oracle.commands`, limits, plan-mode setting, and the fully-resolved registry
-     in `progress.md`.
+   - Validate every configured `use` against `registry.stage_roles` and `registry.uses`; no
+     duplicate `use` inside `reviewers` or `final_reviewers`.
+   - Record `oracle.commands`, limits, plan-mode setting, and the fully-resolved registry in
+     `_progress.md`.
 
 Resume routing after config validation:
-- `phase=triage-gate` + `triage.approved` → go to step 3.
-- `phase=design-gate` + `design.approved` → load `panel.json` into `state.panel`, set
-  `state.phase="inner-loop"` and `state.iteration=1`, then go to step 7.
-- `phase=inner-loop`, `final-review`, or `final-reopen` → continue that phase.
-- `phase=pre-merge-gate` + `merge.approved` → go to step 9.
-- Otherwise, re-announce the gate being waited on and stop.
+- `phase=design-gate` + `_design.approved` → load `_panel.json` into `state.panel`, set
+  `state.phase="inner-loop"` and `state.iteration=1`, then go to step 6 — or, for a review-only
+  run, set `state.phase="review-run"` and go to step 7.
+- `phase=inner-loop`, `final-review`, `final-reopen`, or `review-run` → continue that phase.
+- `phase=merge-confirm` + `_merge.approved` → go to step 9.
+- Otherwise, re-announce the stop being waited on and stop.
 
 ## Stage dispatch
 
@@ -71,24 +74,25 @@ For stage `S = {"use": U, "model": M}`:
 
 | role | reads | do NOT read | writes | format |
 |------|-------|-------------|--------|--------|
-| `validate` | `request.md`, `triage.md`, codebase, `gh` | — | `task.md` + `validation.md` | claim ledger where each claim is `VALID \| STALE(→corrected ref) \| LIKELY-FIXED \| UNVERIFIABLE` with evidence, plus one-line verdict |
-| `architect` | `task.md`, `validation.md`, `triage.md`, codebase | — | `design.md` | high-level, ~1 page: approach · alternatives + pros/cons · files to change (one line each, no code, no exhaustive file:line) · test strategy · risks/open questions |
-| `implementer` | `task.md`, `validation.md`, `design.md`, all prior `iter-*/review-*.md` + `final-review-*.md` | — | source edits + `iter-N/claim.md` | what done / skipped + specific reason / evidence — never edit/delete tests or spec files |
-| `reviewer` | `task.md`, `design.md`, `iter-N/diff.patch`, `iter-N/test-results.txt` | `claim.md`, peer reviewers' output | `iter-N/review-<use>.md` | first line `VERDICT: PASS\|FAIL`, then severity-tagged findings. PASS means zero findings, including nits |
-| `final_reviewer` | `task.md`, `design.md`, `iter-N/diff.patch`, working tree | `claim.md`, peer reviewers' output | `iter-N/final-review-<use>.md` | same verdict format as reviewer |
+| `validate` | `_user_request.md`, `1-triage.md`, codebase, `gh` | — | `_verified_task.md` + `_request_fact_check.md` | claim ledger where each claim is `VALID \| STALE(→corrected ref) \| LIKELY-FIXED \| UNVERIFIABLE` with evidence, plus one-line verdict |
+| `architect` | `_verified_task.md`, `_request_fact_check.md`, `1-triage.md`, codebase | — | `2-design.md` | short, ~1 page: What we're solving · How · Alternatives + the call · Major changes (key files/areas only, never an exhaustive file list) · Risks/open questions. No code, no file:line dumps |
+| `implementer` | `_verified_task.md`, `_request_fact_check.md`, `2-design.md`, all prior `iter-*/review-*.md` + `final-review-*.md` | — | source edits + `iter-N/claim.md` | what done / skipped + specific reason / evidence — never edit/delete tests or spec files |
+| `reviewer` | `_verified_task.md`, `2-design.md`, `iter-N/diff.patch`, `iter-N/test-results.txt` | `claim.md`, peer reviewers' output | `iter-N/review-<use>.md` | first line `VERDICT: PASS\|FAIL`, then severity-tagged findings. PASS means zero findings, including nits |
+| `final_reviewer` | `_verified_task.md`, `2-design.md`, `iter-N/diff.patch`, working tree | `claim.md`, peer reviewers' output | `iter-N/final-review-<use>.md` | same verdict format as reviewer |
 
 ## Procedure
 
 ### 1. Triage
 
-Goal: a cheap product decision before deep analysis. Read `request.md` and any referenced
+Goal: a cheap product decision before deep analysis. Read `_user_request.md` and any referenced
 issue, skim only enough code to judge product value and obvious staleness. Do not trace full
 execution paths and do not build a claim ledger.
 
-Write `.devforge/triage.md` in about 15 lines:
+Write `.devforge/1-triage.md` in about 15 lines:
 - Problem
 - Decision: `PROCEED | DEFER | DECLINE`
 - Complexity: `trivial | small | medium | large`
+- Review-only? `yes` when the task is "review PR/branch/diff X" with nothing to build
 - Approach sketch, high level only
 - Open questions
 
@@ -101,45 +105,40 @@ Complexity rubric:
 | `medium` | feature or shared-helper change: 1 reviewer, 2 final reviewers, `inner_iterations=3`, `final_review_rounds=2` |
 | `large` | 300+ lines, many files, core/foundational/public contract change: full roster, `inner_iterations=3`, `final_review_rounds=2` |
 
-Blast-radius override: core/shared code or public API/response-contract changes are at
-least `medium`, even if tiny. Set `state.phase="triage-gate"`.
+Blast-radius override: core/shared code or public API/response-contract changes are at least
+`medium`, even if tiny.
 
-### 2. TRIAGE GATE
+**Triage has no gate.** Present the overview in chat and continue to validate. Only when the
+decision is `DEFER or DECLINE`, stop and recommend against proceeding, but let the human decide.
+Set `state.phase="validate"`.
 
-Stop until `.devforge/triage.approved` exists. Surface the summary. If triage says
-`DEFER` or `DECLINE`, recommend not proceeding, but let the human decide.
+### 2. Validate
 
-If `plan_mode_gate=true` and plan-mode tools exist: `EnterPlanMode`, mirror
-`triage.md`, `ExitPlanMode`; on approval write `triage.approved`. Otherwise tell the
-human to run `/devforge-approve-triage`.
+Run the `validate` stage. It confirms the task is specific and still true, writing `_verified_task.md`
+(corrected current references) and `_request_fact_check.md` (evidence). For GitHub issues or
+code-location claims, do the staleness check here: fetch issue metadata, build a claim ledger,
+verify references against HEAD, look for already-fixed commits. If core claims are stale or
+likely fixed, stop with a recommendation. Set `state.phase="explore"`.
 
-### 3. Validate
+### 3. Explore
 
-Run the `validate` stage. It confirms the task is specific and still true.
-
-For GitHub issues or code-location claims, perform the deep staleness check here: fetch
-issue metadata, build a claim ledger, verify references against current HEAD, check drift
-since filing, and look for already-fixed commits. If core claims are stale or likely fixed,
-stop with a recommendation before design. Otherwise write `task.md` with corrected current
-references and `validation.md` with evidence. Set `state.phase="explore"`.
-
-### 4. Explore
-
-Read enough code to ground the design. Note key files and patterns in `progress.md`. Set
+Read enough code to ground the design. Note key files and patterns in `_progress.md`. Set
 `state.phase="architect"`.
 
-### 5. Architect
+### 4. Architect
 
-Run the `architect` stage. It writes `.devforge/design.md`: one human-reviewable page with
-approach, alternatives/trade-offs, files to change, test strategy, risks, and open
-questions. No code blocks or exhaustive file:line detail. Set `state.phase="design-gate"`.
+Run the `architect` stage. It writes `.devforge/2-design.md`: one short human-reviewable page —
+**What we're solving · How · Alternatives + the call · Major changes (key files/areas only,
+never an exhaustive file list) · Risks**. No code blocks, no file:line dumps. For a review-only
+run, `2-design.md` is the review scope: what to check and which reviewers. Set
+`state.phase="design-gate"`.
 
-### 6. DESIGN GATE
+### 5. Design gate
 
-Do not edit source files until `.devforge/design.approved` exists.
+Do not edit source files until `.devforge/_design.approved` exists.
 
-Propose the per-run review panel from the configured roster. Start from the triage tier,
-then adjust for actual design scope. Write `.devforge/panel.json`:
+Propose the per-run review panel from the configured roster. Start from the triage tier, then
+adjust for actual design scope. Write `.devforge/_panel.json`:
 
 ```json
 {
@@ -152,65 +151,73 @@ then adjust for actual design scope. Write `.devforge/panel.json`:
 }
 ```
 
-The approved panel must be a subset of the configured roster. If `plan_mode_gate=true`,
-mirror `design.md` plus `panel.json` through `EnterPlanMode` / `ExitPlanMode`; on approval
-copy `panel.json` into `state.panel`, set `state.phase="inner-loop"` and
-`state.iteration=1`, then write `design.approved`. Otherwise tell the human to run
-`/devforge-approve-design`; that approval skill records `state.panel`.
+The approved panel must be a subset of the configured roster. If `plan_mode_gate=true` and
+plan-mode tools exist: `EnterPlanMode`, mirror `2-design.md` plus `_panel.json`, `ExitPlanMode`;
+on approval copy `_panel.json` into `state.panel`, set `state.phase="inner-loop"` (or
+`"review-run"` for a review-only run) and `state.iteration=1`, then write `_design.approved`.
+Otherwise tell the human to run `/devforge-approve-design`; that approval skill records
+`state.panel`. For a review-only run, go to step 7 instead of the inner loop.
 
-### 7. Inner loop
+### 6. Inner loop
 
-Use `state.panel`, not the raw roster. Validate it against config; if absent for an older
-run, fall back to the full configured roster and limits and record that in `progress.md`.
+Use `state.panel`, not the raw roster. Validate it against config; if absent for an older run,
+fall back to the full configured roster and limits and record that in `_progress.md`.
 
 For each iteration `N`:
 1. Set `state.phase="inner-loop"` and `state.iteration=N`; create `.devforge/iter-N/`.
-2. Run the `implementer` stage. It applies `task.md`, `validation.md`, and `design.md`,
-   addresses every prior review/final-review finding, and writes `claim.md`.
-3. Run `oracle.commands`; if empty, record and run the smallest credible inferred fallback.
-   Use finite, deterministic, non-mutating commands; avoid `dev`, `start`, `watch`,
-   `lint:fix`, `format`, `clean`, inspectors, and eval workflows. If no credible command
-   exists, the oracle is not green.
-4. Check `git status --porcelain`. If there are pre-existing unrelated changes, stop for
-   human direction. Write `diff.patch` only for approved-run changes.
+2. Run the `implementer` stage. It applies `_verified_task.md`, `_request_fact_check.md`, and `2-design.md`,
+   addresses every prior review/final-review finding, and writes `iter-N/claim.md`.
+3. Run `oracle.commands`; if empty, record and run the smallest credible inferred fallback. Use
+   finite, deterministic, non-mutating commands; avoid `dev`, `start`, `watch`, `lint:fix`,
+   `format`, `clean`, inspectors, and eval workflows. If no credible command exists, the oracle
+   is not green.
+4. Check `git status --porcelain`. If there are pre-existing unrelated changes, stop for human
+   direction. Write `diff.patch` only for approved-run changes.
 5. Dispatch panel reviewers in parallel. They are blind to `claim.md` and peer reviews.
-6. Converge only when the oracle is green and every finding is fixed or explicitly skipped
-   with a sound reason. Otherwise iterate until `inner_iterations`, then stop/escalate.
+6. Converge only when the oracle is green and every finding is fixed or explicitly skipped with a
+   sound reason. Otherwise iterate until `inner_iterations`, then stop/escalate.
 
-When converged, set `state.phase="final-review"` if there are final reviewers; otherwise
-set `state.phase="pre-merge-gate"`.
+When converged, set `state.phase="final-review"` if there are final reviewers; otherwise set
+`state.phase="merge-confirm"`.
 
-### 7b. Final review
+### 6b. Final review
 
 Run panel `final_reviewers` in parallel. Findings reopen implementation, bounded by
-`final_review_rounds`.
+`final_review_rounds`. On a final-review-triggered reopen, set `state.phase="final-reopen"`: it
+re-runs ONLY the final reviewers after the targeted fix unless the fix is broad enough to need
+the regular reviewers too. When clean, set `state.phase="merge-confirm"`.
 
-On a final-review-triggered reopen, set `state.phase="final-reopen"` and use this rule:
-re-runs ONLY the final reviewers after the targeted fix unless the fix is broad enough to
-require regular reviewers too. When clean, set `state.phase="pre-merge-gate"`.
+### 7. Review mode (review-only runs)
 
-### 8. PRE-MERGE GATE
+After the design gate approves the review scope, build `iter-1/diff.patch` from the branch under
+review (`git diff <base>...HEAD`), set `state.phase="review-run"`, and run the panel reviewers
+(and final reviewers) against it. Present a findings summary in chat. **do NOT implement and do
+NOT merge.** If the human then asks to fix findings, set `state.phase="inner-loop"` and run the
+normal loop from step 6.
 
-Stop until `.devforge/merge.approved` exists. Summarize the change, oracle status, reviewer
-verdicts, fixed/skipped findings, design drift, `git diff --stat`, and relevant hunks. Tell
-the human to run `/devforge-approve-merge`.
+### 8. Merge confirm
+
+No plan mode. Summarize the change in chat — oracle status, reviewer verdicts, fixed/skipped
+findings, `git diff --stat`. Ask **"commit & open PR?"** and proceed only on a clear yes, which
+records `_merge.approved`. Headless runs use `/devforge-approve-merge`.
 
 ### 9. Finish
 
 1. Re-check `git status --porcelain`; stop if unrelated changes are present.
-2. Commit with a concise message derived from `task.md`; include durable `.devforge/`
-   evidence files, not ignored transients.
-3. If a writable remote exists, push and open a PR. Include oracle result, reviewer
-   verdicts, approval timestamps, and PR URL in `progress.md`.
+2. Commit, then write the commit message and PR body in plain language — **What we're solving ·
+   How · Alternatives considered** — and nothing else. Never enumerate code changes that are
+   obvious from the diff. Include durable `.devforge/` evidence, not ignored transients.
+3. If a writable remote exists, push and open a PR. Record oracle result, reviewer verdicts,
+   approval timestamps, and PR URL in `_progress.md`.
 
 ## Hard rules
 
-- Only write inside `.devforge/` until `design.approved` exists.
-- Keep triage cheap and product-level; validate owns the claim ledger.
-- Keep design high-level; implementer pins down exact call sites.
-- Never hand-edit approved spec files without explicit human confirmation.
+- Only write inside `.devforge/` until `_design.approved` exists.
+- Triage has no gate; it stops only on DEFER/DECLINE.
+- Keep design short and high-level: major changes only, never an exhaustive file list.
 - The panel, not the roster, drives the run; never run a `use` not in config.
 - Trust the oracle, not model self-reports. Never weaken/delete tests.
 - PASS means zero findings of any severity. Any nit makes `FAIL`.
-- Resolve every reviewer finding before pre-merge: fixed or specifically skipped.
+- Resolve every reviewer finding before merge: fixed or specifically skipped.
 - Keep reviewers blind to `claim.md` and peer reviews.
+- Commit/PR text is plain: what we're solving, how, alternatives — no obvious-from-the-diff narration.

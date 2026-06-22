@@ -20,7 +20,7 @@
     "feature-dev": {
       "roles": ["implementer"],
       "engine": "../_vendored/feature-dev/feature-dev.md",
-      "scope": "implement-only against the approved design.md; SKIP feature-dev's Discovery / clarifying-questions / architecture phases; may dispatch the devforge-code-explorer / devforge-code-architect agents for grounding only"
+      "scope": "implement-only against the approved 2-design.md; SKIP feature-dev's Discovery / clarifying-questions / architecture phases; may dispatch the devforge-code-explorer / devforge-code-architect agents for grounding only"
     },
     "staff-review": {
       "roles": ["reviewer", "final_reviewer"],

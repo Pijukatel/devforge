@@ -41,7 +41,7 @@ flowchart TD
 ```text
 /devforge <task>
   triage product decision              (no gate; stops only on DEFER/DECLINE)
-  verify request + explore + design -> DESIGN GATE (plan mode): approve design + panel
+  verify request + explore + design -> DESIGN GATE: review (plan mode) + approve design + panel
   implement -> oracle -> blind reviewers -> final reviewers
                                         (loop until zero findings, including nits)
   merge confirm (plain chat)        -> commit / PR
@@ -64,13 +64,17 @@ summary. It only enters the implementation loop if you ask it to fix those findi
 
 - `/devforge <task>` starts a new run.
 - `/devforge` resumes the run recorded in `.devforge/_state.json`.
-- `/devforge-approve-design` is the human-only fallback for approving
-  `.devforge/2-design.md` and `.devforge/_panel.json` when plan mode is unavailable.
+- `/devforge-approve-design` is the human-only command for approving
+  `.devforge/2-design.md` and `.devforge/_panel.json` (records the panel and writes the marker).
 - `/devforge-approve-merge` is the human-only fallback for recording merge approval
   before commit, push, or PR creation.
 
-Interactive runs normally use plan mode for the design gate and a chat yes/no for merge.
-The approval commands are mainly for headless or interrupted runs.
+Plan mode (when available) is the design **review surface**, not the approval itself.
+Approval is always an explicit human affirmative — a clear chat "yes" or
+`/devforge-approve-design`; merge uses a chat yes/no or `/devforge-approve-merge`. devforge
+never treats a plan-mode exit, a rejected/edited plan, or a tool error as approval, and never
+self-approves. The on-disk `_design.approved` / `_merge.approved` markers are the only approval
+signals.
 
 ## Install
 

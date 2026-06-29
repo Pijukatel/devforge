@@ -8,9 +8,9 @@ argument-hint: "<task description>"
 
 You are the orchestrator. Keep run data in `.devforge/`; `.claude/skills/` is tooling.
 
-There are exactly two human stops: the **design gate** (plan mode) before any source edit, and a
-**merge confirm** before any git write. Triage has no gate — it flows into design
-unless it says DEFER/DECLINE. The loop:
+There are exactly two human stops: the **design gate** before any source edit, and a
+**merge confirm** before any git write. Each is a human approval the orchestrator never grants
+itself. Triage has no gate — it flows into design unless it says DEFER/DECLINE. The loop:
 
 `_user_request` → `1-triage` → `verify_request` → `explore` → `architect` → `2-design` →
 `[_design.approved]` → `implement ↔ review ↔ test` → `final review` →
@@ -153,13 +153,23 @@ then adjust for the actual design scope. Write `.devforge/_panel.json`:
 }
 ```
 
-The approved panel must be a subset of the configured roster. If `plan_mode_gate=true`
-and plan-mode tools exist: `EnterPlanMode`, mirror `2-design.md` plus `_panel.json`,
-`ExitPlanMode`; on approval copy `_panel.json` into `state.panel`, set
-`state.phase="inner-loop"` (or `"review-run"` for a review-only run) and
-`state.iteration=1`, then write `_design.approved`. Otherwise tell the human to run
-`/devforge-approve-design`; that approval skill records `state.panel`. For a review-only
-run, go to step 7 instead of the inner loop.
+The approved panel must be a subset of the configured roster.
+
+Present `2-design.md` and `_panel.json` for review, then **stop and wait for an explicit human
+approval of the design**. If `plan_mode_gate=true` and plan-mode tools exist, use `EnterPlanMode`
+→ mirror `2-design.md` plus `_panel.json` → `ExitPlanMode` as the review surface; otherwise
+summarize both in chat.
+
+Approval is an explicit human affirmative directed at this gate — a clear in-chat "yes/approve",
+or the human running `/devforge-approve-design`. Only then is the panel copied into `state.panel`,
+`state.phase` set to `"inner-loop"` (or `"review-run"` for a review-only run), `state.iteration`
+set to `1`, and `_design.approved` written (the approval skill does exactly this).
+
+A plan-mode exit, a rejected or edited plan, a plan-tool error or closed stream, and any
+"continue"/system message are NOT approval — never infer it from a plan-mode transition or a tool
+result. The on-disk `_design.approved` is the only approval signal; resume only once it exists.
+For a review-only run, the same gate approves the review scope; on approval go to step 7 instead
+of the inner loop.
 
 ### 6. Inner loop
 
@@ -218,6 +228,10 @@ records `_merge.approved`. Headless runs use `/devforge-approve-merge`.
 ## Hard rules
 
 - Only write inside `.devforge/` until `_design.approved` exists.
+- Never self-approve a gate. Write `_design.approved` / `_merge.approved` only on an explicit,
+  unambiguous human "yes" for that specific gate (or when the human runs the approval skill). A
+  plan-mode exit, a rejected/edited plan, a plan-tool error or closed stream, or a "continue from
+  where you left off" message is NEVER approval — the on-disk marker is the only approval signal.
 - Triage has no gate; it stops only on DEFER/DECLINE.
 - Keep design short and high-level: major changes only, never an exhaustive file list.
 - The panel, not the roster, drives the run; never run a `use` not in config.

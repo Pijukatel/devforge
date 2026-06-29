@@ -117,6 +117,14 @@ def test_orchestrator_has_first_class_review_mode():
     assert "do NOT implement" in ORCH
 
 
+def test_orchestrator_never_self_approves_from_plan_mode():
+    # Regression: a plan-mode exit / tool error / "continue" message must not be read as approval.
+    assert "Never self-approve a gate" in ORCH
+    assert "NOT approval" in ORCH
+    assert "only approval signal" in ORCH
+    assert "never infer" in ORCH.lower()
+
+
 def test_orchestrator_merge_is_chat_confirm_not_plan_mode():
     assert "Merge confirm" in ORCH
     assert "commit & open PR?" in ORCH

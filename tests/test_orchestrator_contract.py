@@ -172,6 +172,14 @@ def test_orchestrator_documents_dirty_worktree_protection():
     assert "pre-existing unrelated changes" in ORCH
 
 
+def test_orchestrator_forbids_add_all_and_scoped_diff():
+    # A stray untracked file must never ride into a PR: no blanket staging, and the reviewed /
+    # summarized diff is unscoped so any stray path is visible.
+    assert "git add -A" in ORCH
+    assert "path filter" in ORCH
+    assert "committed must equal what was reviewed" in ORCH
+
+
 def test_orchestrator_finish_writes_plain_commit_and_pr():
     # Plain PR body: what / how / alternatives, never obvious-diff narration.
     assert "Alternatives considered" in ORCH

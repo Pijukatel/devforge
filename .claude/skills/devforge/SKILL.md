@@ -18,12 +18,10 @@ itself. Triage has no gate — it flows into design unless it says DEFER/DECLINE
 
 ## Files
 
-Two files are human-facing; underscore-prefixed files are internal routing state.
-
-**Why one file per stage:** each stage writes one file and each role reads ONLY what it
-needs, so subagent context stays scoped and reviewers stay independent. Reviewers judge
-the diff against `2-design.md`; they never see the implementer's `claim.md` or each
-other's reviews — that blindness is what makes a multi-reviewer panel give independent signal.
+**Why one file per stage:** each role reads ONLY the files it needs, so subagent context stays
+scoped and reviewers stay independent. Reviewers read only `_verified_task.md`, `2-design.md`,
+`iter-N/diff.patch`, and `iter-N/test-results.txt` — judging the diff against `2-design.md`,
+never seeing `claim.md` or peer reviews; that blindness gives a multi-reviewer panel independent signal.
 
 - Human-facing: `1-triage.md`, `2-design.md`.
 - Internal: `_user_request.md`, `_verified_task.md`, `_request_fact_check.md`, `_panel.json`, `_state.json`,
@@ -31,13 +29,10 @@ other's reviews — that blindness is what makes a multi-reviewer panel give ind
 - Per iteration in `iter-N/`: `claim.md`, `review-<use>.md`, `final-review-<use>.md`, and the
   regenerable (gitignored) `diff.patch`, `test-results.txt`.
 
-Reviewer independence: reviewers read only `_verified_task.md`, `2-design.md`,
-`iter-N/diff.patch`, and `iter-N/test-results.txt`. Never give them `claim.md` or peer
-reviews.
-
 ## Setup / resume
 
-1. `mkdir -p .devforge`.
+1. `mkdir -p .devforge`. If `.devforge/` is not already git-ignored, append it to
+   `.git/info/exclude` (local, uncommitted) so run state never lands in a code PR.
 2. Fresh run: require a non-empty `<task>`. Write it verbatim to `.devforge/_user_request.md`.
    Initialize `_state.json`: `{"phase":"triage","iteration":0,"head_sha":"<git rev-parse HEAD>"}`.
 3. If `.devforge/_state.json` exists, read it and resume. If a new non-empty `<task>` differs
@@ -191,8 +186,9 @@ For each iteration `N`:
    finite, deterministic, non-mutating commands; avoid `dev`, `start`, `watch`, `lint:fix`,
    `format`, `clean`, inspectors, and eval workflows. If no credible command exists, the oracle
    is not green.
-4. Check `git status --porcelain`. If there are pre-existing unrelated changes, stop for human
-   direction. Write `diff.patch` only for approved-run changes.
+4. Check `git status --porcelain` over the whole tree — pre-existing unrelated changes or stray
+   untracked files (build outputs, downloads) are a stop. Build `iter-N/diff.patch` as the full
+   diff vs base with NO path filter (only `.devforge/` excluded); a path-scoped diff hides strays.
 5. Dispatch panel reviewers in parallel. They are blind to `claim.md` and peer reviews.
 6. Converge only when the oracle is green and every finding is fixed or explicitly skipped with a
    sound reason. Otherwise iterate until `inner_iterations`, then stop/escalate.
@@ -219,17 +215,19 @@ and do NOT merge.** If the human then asks to fix findings, set
 ### 8. Create-PR confirm
 
 No plan mode. Summarize the change in chat — oracle status, reviewer verdicts, fixed/skipped
-findings, `git diff --stat`. Ask **"commit & open PR?"** and proceed only on a clear yes, which
-records `_create_pr.approved`. Headless runs use `/devforge-approve-create-pr`. This approves
-creating the PR, not merging it.
+findings, and the full `git diff --stat <base>...HEAD` (no path filter, so stray files show).
+Reconcile: the changed-path set must equal what the panel reviewed; stop on any unreviewed path.
+Ask **"commit & open PR?"**; proceed only on a clear yes, which records `_create_pr.approved`
+(headless: `/devforge-approve-create-pr`). This approves creating the PR, not merging it.
 
 ### 9. Finish
 
-1. Re-check `git status --porcelain`; stop if unrelated changes are present.
-2. Commit, then write the commit message and PR body in plain language — **What we're solving ·
-   How · Alternatives considered** — and nothing else. Never enumerate code changes that are
-   obvious from the diff. Include durable `.devforge/` evidence, not ignored transients.
-3. If a writable remote exists, push and open a PR. Record oracle result, reviewer verdicts,
+1. Re-check `git status --porcelain` over the whole tree; stop on unrelated or unexpected files.
+2. Stage ONLY reviewed paths by explicit path — never `git add -A` (it sweeps in stray untracked
+   files); verify staged == reviewed (`diff.patch`) paths, abort on extras. `.devforge/` is ignored.
+3. Commit, then write the commit message and PR body in plain language — **What we're solving ·
+   How · Alternatives considered** — and nothing else, never narrating changes obvious from the diff.
+4. If a writable remote exists, push and open a PR. Record oracle result, reviewer verdicts,
    approval timestamps, and PR URL in `_progress.md`.
 
 ## Hard rules
@@ -243,6 +241,8 @@ creating the PR, not merging it.
 - Triage has no gate; it stops only on DEFER/DECLINE.
 - Keep design short and high-level: major changes only, never an exhaustive file list.
 - The panel, not the roster, drives the run; never run a `use` not in config.
+- What gets committed must equal what was reviewed: full-diff `diff.patch`/create-PR summary (no
+  path filter), stage by explicit path, never `git add -A` — a stray file must never reach a PR.
 - Trust the oracle, not model self-reports. Never weaken/delete tests.
 - PASS means zero findings of any severity. Any nit makes `FAIL`.
 - Resolve every reviewer finding before merge: fixed or specifically skipped.

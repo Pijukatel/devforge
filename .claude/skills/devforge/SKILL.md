@@ -186,8 +186,8 @@ For each iteration `N`:
    `format`, `clean`, inspectors, and eval workflows. If no credible command exists, the oracle
    is not green.
 4. Check `git status --porcelain` over the whole tree — pre-existing unrelated changes or stray
-   untracked files (build outputs, downloads) are a stop. Build `iter-N/diff.patch` as the full
-   diff vs base with NO path filter (only `.devforge/` excluded); a path-scoped diff hides strays.
+   untracked files are a stop; this whole-tree check, not the diff, is what catches strays. Build
+   `iter-N/diff.patch` as the diff vs base excluding only `.devforge/` (reviewer blindness).
 5. Dispatch panel reviewers in parallel. They are blind to `claim.md` and peer reviews.
 6. Converge only when the oracle is green and every finding is fixed or explicitly skipped with a
    sound reason. Otherwise iterate until `inner_iterations`, then stop/escalate.
@@ -206,7 +206,7 @@ unless the fix is broad enough to need the regular reviewers too. When clean, se
 ### 7. Review mode (review-only runs)
 
 After the design gate approves the review scope, build `iter-1/diff.patch` from the branch
-under review (`git diff <base>...HEAD`, no path filter), set `state.phase="review-run"`, and run the
+under review (`git diff <base>...HEAD`, excluding only `.devforge/`), set `state.phase="review-run"`, and run the
 panel reviewers and final reviewers against it. Present a findings summary in chat. **do NOT implement
 and do NOT merge.** If the human then asks to fix findings, set
 `state.phase="inner-loop"` and run the normal loop from step 6.
@@ -214,7 +214,7 @@ and do NOT merge.** If the human then asks to fix findings, set
 ### 8. Create-PR confirm
 
 No plan mode. Summarize the change in chat — oracle status, reviewer verdicts, fixed/skipped
-findings, and the full `git diff --stat <base>...HEAD` (no path filter, so stray files show).
+findings, whole-tree `git status` (untracked strays show), and `git diff --stat <base>...HEAD` (no path filter).
 Reconcile: the changed-path set must equal what the panel reviewed; stop on any unreviewed path.
 Ask **"commit & open PR?"**; proceed only on a clear yes, which records `_create_pr.approved`
 (headless: `/devforge-approve-create-pr`). This approves creating the PR, not merging it.
@@ -241,8 +241,8 @@ Ask **"commit & open PR?"**; proceed only on a clear yes, which records `_create
 - Triage has no gate; it stops only on DEFER/DECLINE.
 - Keep design short and high-level: major changes only, never an exhaustive file list.
 - The panel, not the roster, drives the run; never run a `use` not in config.
-- Never `git add -A`: stage by explicit path — reviewed code plus designated `.devforge/` evidence,
-  nothing else — and build `diff.patch`/summaries with no path filter, so a stray file can't hide.
+- Never `git add -A`: stage by explicit path — reviewed code plus designated `.devforge/` evidence.
+  Whole-tree `git status` catches strays; `diff.patch` excludes only `.devforge/` (reviewer blindness).
 - Trust the oracle, not model self-reports. Never weaken/delete tests.
 - PASS means zero findings of any severity. Any nit makes `FAIL`.
 - Resolve every reviewer finding before merge: fixed or specifically skipped.

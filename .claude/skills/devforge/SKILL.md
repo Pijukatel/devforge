@@ -31,8 +31,7 @@ never seeing `claim.md` or peer reviews; that blindness gives a multi-reviewer p
 
 ## Setup / resume
 
-1. `mkdir -p .devforge`. If `.devforge/` is not already git-ignored, append it to
-   `.git/info/exclude` (local, uncommitted) so run state never lands in a code PR.
+1. `mkdir -p .devforge`.
 2. Fresh run: require a non-empty `<task>`. Write it verbatim to `.devforge/_user_request.md`.
    Initialize `_state.json`: `{"phase":"triage","iteration":0,"head_sha":"<git rev-parse HEAD>"}`.
 3. If `.devforge/_state.json` exists, read it and resume. If a new non-empty `<task>` differs
@@ -207,7 +206,7 @@ unless the fix is broad enough to need the regular reviewers too. When clean, se
 ### 7. Review mode (review-only runs)
 
 After the design gate approves the review scope, build `iter-1/diff.patch` from the branch
-under review (`git diff <base>...HEAD`), set `state.phase="review-run"`, and run the
+under review (`git diff <base>...HEAD`, no path filter), set `state.phase="review-run"`, and run the
 panel reviewers and final reviewers against it. Present a findings summary in chat. **do NOT implement
 and do NOT merge.** If the human then asks to fix findings, set
 `state.phase="inner-loop"` and run the normal loop from step 6.
@@ -223,8 +222,9 @@ Ask **"commit & open PR?"**; proceed only on a clear yes, which records `_create
 ### 9. Finish
 
 1. Re-check `git status --porcelain` over the whole tree; stop on unrelated or unexpected files.
-2. Stage ONLY reviewed paths by explicit path — never `git add -A` (it sweeps in stray untracked
-   files); verify staged == reviewed (`diff.patch`) paths, abort on extras. `.devforge/` is ignored.
+2. Stage by explicit path — never `git add -A`, which sweeps in stray untracked files. Stage the
+   reviewed code paths plus the durable `.devforge/` evidence (`1-triage.md`, `2-design.md`,
+   `claim.md`, reviews) and nothing else; transients (`diff.patch`, `test-results.txt`) stay gitignored.
 3. Commit, then write the commit message and PR body in plain language — **What we're solving ·
    How · Alternatives considered** — and nothing else, never narrating changes obvious from the diff.
 4. If a writable remote exists, push and open a PR. Record oracle result, reviewer verdicts,
@@ -241,8 +241,8 @@ Ask **"commit & open PR?"**; proceed only on a clear yes, which records `_create
 - Triage has no gate; it stops only on DEFER/DECLINE.
 - Keep design short and high-level: major changes only, never an exhaustive file list.
 - The panel, not the roster, drives the run; never run a `use` not in config.
-- What gets committed must equal what was reviewed: full-diff `diff.patch`/create-PR summary (no
-  path filter), stage by explicit path, never `git add -A` — a stray file must never reach a PR.
+- Never `git add -A`: stage by explicit path — reviewed code plus designated `.devforge/` evidence,
+  nothing else — and build `diff.patch`/summaries with no path filter, so a stray file can't hide.
 - Trust the oracle, not model self-reports. Never weaken/delete tests.
 - PASS means zero findings of any severity. Any nit makes `FAIL`.
 - Resolve every reviewer finding before merge: fixed or specifically skipped.

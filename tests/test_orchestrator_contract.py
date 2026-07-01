@@ -177,7 +177,7 @@ def test_orchestrator_forbids_add_all_and_scoped_diff():
     # summarized diff is unscoped so any stray path is visible.
     assert "git add -A" in ORCH
     assert "path filter" in ORCH
-    assert "committed must equal what was reviewed" in ORCH
+    assert "explicit path" in ORCH
 
 
 def test_orchestrator_finish_writes_plain_commit_and_pr():

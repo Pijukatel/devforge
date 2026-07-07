@@ -10,8 +10,9 @@ argument-hint: ""
 
 Record human approval of the design and review panel so implementation can begin.
 
-1. Read `.devforge/2-design.md` and `.devforge/_panel.json`; stop if either is missing.
-2. Summarize the approach, planned changes, reviewers, final reviewers, limits, and panel
+1. Read `.devforge/2-design.md`, `.devforge/3-success-criteria.md`, and `.devforge/_panel.json`;
+   stop if any is missing. Approval covers all three.
+2. Summarize the approach, success criteria, reviewers, final reviewers, limits, and panel
    reason in 3-5 lines.
 3. Copy the approved panel into `_state.json`:
    ```bash
@@ -31,7 +32,7 @@ Record human approval of the design and review panel so implementation can begin
    review_only = (
        state_review_only is True
        or str(state_review_only).lower() == "true"
-       or bool(re.search(r"review-only\?\s*`?yes`?", triage_text))
+       or bool(re.search(r"review-only[?:]?\s*`?yes`?", triage_text))
    )
    state["panel"] = panel
    state["review_only"] = review_only

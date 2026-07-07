@@ -1,11 +1,11 @@
 {
   "stages": {
     "reviewers": [
-      { "use": "staff-review",  "model": "sonnet" }
+      { "use": "staff-review",  "model": "auto" }
     ],
     "final_reviewers": [
-      { "use": "thermonuclear", "model": "sonnet" },
-      { "use": "code-review",   "model": "sonnet" }
+      { "use": "thermonuclear", "model": "auto" },
+      { "use": "code-review",   "model": "auto" }
     ]
   },
   "oracle": {

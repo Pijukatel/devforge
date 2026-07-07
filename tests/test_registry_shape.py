@@ -24,7 +24,7 @@ def test_every_use_declares_known_roles():
 
 def test_every_config_use_exists_in_registry():
     stages = CONFIG["stages"]
-    names = [stages[s]["use"] for s in SINGLE_STAGES if s in stages]
+    names = [stages[s]["use"] for s in SINGLE_STAGES if s in stages and "use" in stages[s]]
     names += [e["use"] for s in ("reviewers", "final_reviewers") for e in stages[s]]
     for name in names:
         assert name in REGISTRY["uses"], f"config uses '{name}' but registry has no such entry"

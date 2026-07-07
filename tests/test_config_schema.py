@@ -46,6 +46,26 @@ def test_schema_rejects_empty_oracle_command():
         jsonschema.validate(bad, SCHEMA)
 
 
+def test_schema_accepts_model_only_single_stage():
+    ok = load_json(CONFIG)
+    ok["stages"]["implementer"] = {"model": "auto"}
+    jsonschema.validate(ok, SCHEMA)
+
+
+def test_schema_rejects_empty_single_stage():
+    bad = load_json(CONFIG)
+    bad["stages"]["implementer"] = {}
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bad, SCHEMA)
+
+
+def test_schema_rejects_model_only_reviewer():
+    bad = load_json(CONFIG)
+    bad["stages"]["reviewers"] = [{"model": "sonnet"}]
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate(bad, SCHEMA)
+
+
 def test_catalog_examples_are_valid():
     import sys
 

@@ -88,14 +88,18 @@ Resume by phase:
 
 ## Stage dispatch
 
-Stages come from the validated config; there is no separate wrapper skill per engine. A stage
-with no configured `use` is dispatched the same way on the session's default model with the
-Method line omitted; only triage and the iterate conversation run in the orchestrator itself.
-For stage key `K` with assignment `S = {"use": U, "model": M}`:
+Stages come from the validated config; there is no separate wrapper skill per engine. Only
+triage and the iterate conversation run in the orchestrator itself. A single stage may be
+configured model-only (`{"model": ...}` with no `use`): it runs the built-in role with the
+Method line omitted. For stage key `K` with assignment `S`:
 
-1. Resolve `role = registry.stage_roles[K]`, `engine = registry.uses[U].engine`, and
-   `scope = registry.uses[U].scope`.
-2. Dispatch a subagent on model `M` with this whole instruction:
+1. If `S.use` is set, resolve `role = registry.stage_roles[K]`, `engine =
+   registry.uses[S.use].engine`, and `scope = registry.uses[S.use].scope`. With no `use`, use
+   the built-in `role = registry.stage_roles[K]` and omit the Method line.
+2. Resolve the model `M`: prefer the concrete pick recorded in `_panel.json` for this stage; else
+   if `S.model` is `"auto"` or absent, pick from **Model tiering** below by role and triage tier;
+   else use `S.model` verbatim.
+3. Dispatch a subagent on model `M` with this whole instruction:
 
 > You are filling devforge's **{role}** stage. You run non-interactively: you cannot ask the
 > human anything — record open questions in your output file instead. Communicate only through
@@ -112,6 +116,16 @@ For stage key `K` with assignment `S = {"use": U, "model": M}`:
 | `reviewer` | pasted content of `2-design.md`, `3-success-criteria.md`, `iter-N/diff.patch`, `iter-N/test-results.txt` — nothing else | `claim.md`, peer reviewers' output | `iter-N/review-<use>.md` | first line `VERDICT: PASS\|FAIL` (PASS = zero findings), then findings tagged `blocker\|major\|minor\|nit` |
 | `final_reviewer` | same as reviewer, plus the working tree | `claim.md`, peer reviewers' output | `iter-N/final-review-<use>.md` | same verdict format as reviewer |
 | `fulfillment` | pasted content of `3-success-criteria.md`, `iter-N/diff.patch`, `iter-N/test-results.txt`, `iter-N/claim.md`, plus the working tree (may run the non-mutating check a criterion names) | `2-design.md` solution details, review files | `iter-N/fulfillment.md` | first line `VERDICT: PASS\|FAIL`, then each criterion `MET \| NOT MET` with evidence |
+
+### Model tiering
+
+`"auto"` (the shipped default) lets the orchestrator pick a model per role and triage tier; an
+explicit name (`opus`, `sonnet`, `haiku`) is used verbatim. Resolve `"auto"` as: `implementer` →
+`haiku` (`sonnet` for `medium`/`large` — a subtle change is not transcription); `verify`,
+`explorer`, `success_criteria`, `reviewer` → `sonnet`; `architect` → `opus`; `final_reviewer` →
+`opus` (`sonnet` for `trivial`/`small`). `sonnet` is the floor for review — never `haiku`. Resolve
+every `"auto"` once at the design gate (step 4) so the human sees and can edit the picks; record
+them in `_panel.json` and dispatch from there.
 
 ## Procedure
 
@@ -199,12 +213,16 @@ Do not edit source files until `.devforge/_design.approved` exists. Set
 
 Propose the per-run review panel from the configured roster: start from the triage tier, adjust
 for the actual design scope, and pick from the roster in config order unless the design's risk
-calls for a specific reviewer. Write `.devforge/_panel.json`:
+calls for a specific reviewer. **Resolve every `"auto"` model to a concrete name** (see Model
+tiering) at the settled tier — inline on each reviewer, and in a `models` map for the single
+stages (only those whose config model is `"auto"`; an explicit model keeps its name). Write
+`.devforge/_panel.json`:
 
 ```json
 {
   "tier": "small",
   "reason": "localized low-risk change",
+  "models": { "verify": "sonnet", "architect": "opus", "implementer": "haiku", "success_criteria": "sonnet", "fulfillment": "sonnet" },
   "reviewers": [{ "use": "staff-review", "model": "sonnet" }],
   "final_reviewers": [{ "use": "code-review", "model": "sonnet" }],
   "inner_iterations": 2,
@@ -215,8 +233,9 @@ calls for a specific reviewer. Write `.devforge/_panel.json`:
 The approved panel must be a subset of the configured roster.
 
 Surface the FULL `2-design.md` + `3-success-criteria.md` + `_panel.json` to the human, then
-**stop for the human's decision.** Approval covers all three. Two human-driven outcomes,
-recorded on disk:
+**stop for the human's decision.** Approval covers all three. Show the resolved per-stage models
+in the panel summary so the human can bump any up or down before approving (a model change is a
+Revise, folded into this gate — not a new stop). Two human-driven outcomes, recorded on disk:
 
 **Approve.** A clear "yes/approve" in chat, or the human running `/devforge-approve-design`. Copy
 the panel into `state.panel`, set `state.phase` to `"inner-loop"` (or `"review-run"` when

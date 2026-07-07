@@ -87,10 +87,10 @@ Core/shared or public-contract changes are `medium` at minimum regardless of lin
 ```json
 {
   "stages": {
-    "reviewers": [{ "use": "staff-review", "model": "sonnet" }],
+    "reviewers": [{ "use": "staff-review", "model": "auto" }],
     "final_reviewers": [
-      { "use": "thermonuclear", "model": "sonnet" },
-      { "use": "code-review", "model": "sonnet" }
+      { "use": "thermonuclear", "model": "auto" },
+      { "use": "code-review", "model": "auto" }
     ]
   },
   "oracle": { "commands": [] },
@@ -98,6 +98,16 @@ Core/shared or public-contract changes are `medium` at minimum regardless of lin
   "plan_mode_gate": true
 }
 ```
+
+## Model selection
+
+Each stage entry takes a `model`. `"auto"` (the default) lets devforge pick per role and triage
+tier — `haiku` for a small transcription-style implementer, `sonnet` for verify/criteria/reviewers,
+`opus` for the architect and final reviewers — scaling up for `medium`/`large` and down for
+`trivial`/`small`. A concrete name (`opus`, `sonnet`, `haiku`) pins the stage and overrides auto.
+Single stages may be **model-only** (`{ "model": "..." }` with no `use`): built-in role behavior on
+that model. All `"auto"` picks are resolved and shown at the design gate, where you can adjust any
+before approving.
 
 `oracle.commands` should be finite and non-mutating. Good defaults for JS/TS repos are:
 

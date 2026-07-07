@@ -38,3 +38,23 @@ def test_empty_final_reviewers_is_valid():
     ok = load_json(CONFIG)
     ok["stages"]["final_reviewers"] = []
     assert validate(ok, REGISTRY) == []
+
+
+def test_model_only_single_stage_is_valid():
+    ok = load_json(CONFIG)
+    ok["stages"]["implementer"] = {"model": "auto"}
+    assert validate(ok, REGISTRY) == []
+
+
+def test_single_stage_needs_use_or_model_reported():
+    bad = load_json(CONFIG)
+    bad["stages"]["implementer"] = {}
+    errs = validate(bad, REGISTRY)
+    assert any("implementer" in e for e in errs)
+
+
+def test_reviewer_without_use_reported():
+    bad = load_json(CONFIG)
+    bad["stages"]["reviewers"] = [{"model": "sonnet"}]
+    errs = validate(bad, REGISTRY)
+    assert any("reviewers" in e and "use" in e for e in errs)

@@ -13,7 +13,7 @@ def test_orchestrator_reads_config_and_registry():
 
 def test_orchestrator_skill_stays_compact():
     # Keep the orchestrator readable, but do not force removal of operational guidance.
-    assert len(ORCH.splitlines()) <= 340
+    assert len(ORCH.splitlines()) <= 360
 
 
 def test_orchestrator_documents_per_reviewer_files():
@@ -246,8 +246,8 @@ def test_orchestrator_uses_universal_dispatch_not_wrapper_skills():
     assert "Stage dispatch" in ORCH
     assert "registry.stage_roles" in ORCH and "registry.uses" in ORCH
     assert "separate wrapper skill" in ORCH
-    # Engines are optional: a stage without a configured use runs built-in.
-    assert "no configured `use`" in ORCH
+    # Engines are optional: a single stage with no `use` runs the built-in role.
+    assert "with no `use`" in ORCH
 
 
 def test_no_wrapper_skill_dirs_remain():

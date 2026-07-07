@@ -12,11 +12,11 @@
       "additionalProperties": false,
       "required": ["reviewers", "final_reviewers"],
       "properties": {
-        "verify":      { "$ref": "#/$defs/stageValue" },
-        "architect":   { "$ref": "#/$defs/stageValue" },
-        "implementer": { "$ref": "#/$defs/stageValue" },
-        "success_criteria": { "$ref": "#/$defs/stageValue" },
-        "fulfillment": { "$ref": "#/$defs/stageValue" },
+        "verify":      { "$ref": "#/$defs/singleStageValue" },
+        "architect":   { "$ref": "#/$defs/singleStageValue" },
+        "implementer": { "$ref": "#/$defs/singleStageValue" },
+        "success_criteria": { "$ref": "#/$defs/singleStageValue" },
+        "fulfillment": { "$ref": "#/$defs/singleStageValue" },
         "reviewers":       { "description": "Roster for inner-loop reviewers. The design gate selects a per-run subset.", "type": "array", "items": { "$ref": "#/$defs/stageValue" }, "minItems": 1 },
         "final_reviewers": { "description": "Roster for post-convergence reviewers. May be empty.", "type": "array", "items": { "$ref": "#/$defs/stageValue" }, "minItems": 0 }
       }
@@ -47,13 +47,23 @@
   },
   "$defs": {
     "stageValue": {
-      "description": "One stage assignment. `use` names a registry entry; `model` is optional.",
+      "description": "One reviewer assignment. `use` names a registry entry; `model` is optional.",
       "type": "object",
       "additionalProperties": false,
       "required": ["use"],
       "properties": {
         "use":   { "description": "Registry `use` name for the engine that fills this stage.", "type": "string" },
-        "model": { "description": "Model override for this stage, such as opus or sonnet.", "type": "string" }
+        "model": { "description": "Model for this stage: a model name (opus, sonnet, haiku) or \"auto\" to let the orchestrator pick per role and complexity.", "type": "string" }
+      }
+    },
+    "singleStageValue": {
+      "description": "One single-stage assignment. At least one of `use` (engine) or `model`. Model-only means the built-in role behavior on the given model.",
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "use":   { "description": "Registry `use` name for the engine that fills this stage.", "type": "string" },
+        "model": { "description": "Model for this stage: a model name (opus, sonnet, haiku) or \"auto\" to let the orchestrator pick per role and complexity.", "type": "string" }
       }
     }
   }

@@ -49,9 +49,14 @@ def validate(config: dict, registry: dict) -> list[str]:
     stages = config.get("stages", {})
     for stage in SINGLE_STAGES:
         entry = stages.get(stage)
-        if not entry:
+        if entry is None:
             continue  # optional stage: built-in behavior, nothing to validate
-        _check_use(stage, entry["use"], registry, errs)
+        use = entry.get("use")
+        if use is None:
+            if not entry.get("model"):
+                errs.append(f"stage '{stage}' entry needs a 'use' or a 'model'")
+            continue  # model-only: built-in role on the given model, no use to check
+        _check_use(stage, use, registry, errs)
     for stage in LIST_STAGES:
         entries = stages.get(stage)
         if entries is None:
@@ -59,7 +64,10 @@ def validate(config: dict, registry: dict) -> list[str]:
             continue
         seen: set[str] = set()
         for entry in entries:
-            name = entry["use"]
+            name = entry.get("use")
+            if name is None:
+                errs.append(f"stage '{stage}' entry missing 'use'")
+                continue
             if name in seen:
                 errs.append(f"duplicate '{name}' in stage '{stage}'")
             seen.add(name)

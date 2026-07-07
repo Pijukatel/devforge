@@ -112,7 +112,7 @@ Method line omitted. For stage key `K` with assignment `S`:
 | `explorer` | codebase | `.devforge/` internals | `_codebase_map.md` | ≤1 page: key files · patterns · data flow · risks |
 | `architect` | `_user_request.md`, `1-triage.md`, `_request_fact_check.md`, `_codebase_map.md` if present, codebase; on a revision pass also its previous `2-design.md` + `_design_feedback.md` | `3-success-criteria.md` | `2-design.md` | the design template in step 3 |
 | `success_criteria` | pasted content of the "What we're solving" and "How it will work" sections of `2-design.md`, plus `_user_request.md` and `1-triage.md` — nothing else | the rest of `2-design.md` (the solution), `claim.md` | `3-success-criteria.md` | numbered, testable criteria — each verifiable by a command or an observable behavior; no solution details |
-| `implementer` | `2-design.md`, `3-success-criteria.md`, `_request_fact_check.md`, `_codebase_map.md` if present, all prior `iter-*/review-*.md` + `final-review-*.md` + `fulfillment.md` | — | source edits + `iter-N/claim.md` | what done · every finding fixed or skipped with a specific reason — never weaken/delete tests; add or update tests when needed |
+| `implementer` | `2-design.md`, `3-success-criteria.md`, `_request_fact_check.md`, `_codebase_map.md` if present, all prior `iter-*/review-*.md` + `final-review-*.md` + `fulfillment.md` | — | source edits + `iter-N/claim.md` | what done · every finding fixed or skipped with a specific reason · for a behavior change, add a regression test — ideally shown red before the fix and green after, with the red→green noted in `claim.md` — never weaken/delete tests |
 | `reviewer` | pasted content of `2-design.md`, `3-success-criteria.md`, `iter-N/diff.patch`, `iter-N/test-results.txt` — nothing else | `claim.md`, peer reviewers' output | `iter-N/review-<use>.md` | first line `VERDICT: PASS\|FAIL` (PASS = zero findings), then findings tagged `blocker\|major\|minor\|nit` |
 | `final_reviewer` | same as reviewer, plus the working tree | `claim.md`, peer reviewers' output | `iter-N/final-review-<use>.md` | same verdict format as reviewer |
 | `fulfillment` | pasted content of `3-success-criteria.md`, `iter-N/diff.patch`, `iter-N/test-results.txt`, `iter-N/claim.md`, plus the working tree (may run the non-mutating check a criterion names) | `2-design.md` solution details, review files | `iter-N/fulfillment.md` | first line `VERDICT: PASS\|FAIL`, then each criterion `MET \| NOT MET` with evidence |
@@ -353,6 +353,8 @@ with `state.phase="inner-loop"` and run the normal loop from step 5.
 - Trust the oracle, not model self-reports. Never weaken/delete tests.
 - Converge on severity: no open `blocker`/`major`; every `minor`/`nit` fixed or skipped with a
   specific reason, and every skip shown at the create-PR confirm.
+- A finding fixable only by changing the approved `2-design.md` / `3-success-criteria.md` is the
+  human's call — surface it at the gate; never edit an approved artifact to silence a finding.
 - No PR without fulfillment: every criterion `MET`, or the human explicitly accepts the
   exception.
 - Commit/PR text is plain: what we're solving, how, alternatives — no obvious-from-the-diff narration.
